@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+#
+# jira — minimal Jira Cloud helper over the REST API.
+#
+# Config keys:
+#   JIRA_URL    Base URL          (default https://nhatlinhnguyen224.atlassian.net)
+#   JIRA_EMAIL  Your Atlassian login email       (required)
+#   JIRA_TOKEN  API token from id.atlassian.com  (required)
+#
+# Config file: jira.env in the project root (next to this script's parent dir).
+# Precedence: env var > $JIRA_ENV_FILE > <project>/jira.env > default.
+#
+# The project file is the ONLY file read — there is deliberately no ~/.config
+# fallback. A global config would apply to every repo on the machine, and this
+# machine already has other Atlassian accounts configured; picking one up here
+# would silently send reads and writes to the wrong Jira site under the wrong
+# identity. Config is per-project, so it lives in the project.
+#
+# The root is resolved from this script's own path, not $PWD or git — so it
+# finds the same jira.env whether invoked as ./bin/jira, from a subdirectory,
+# or via a symlink on $PATH.
+#
+# Run `jira whoami` to confirm which site/account is active before any write.
+#
+# Auth = HTTP Basic (email:token). Uses REST v2 so comment/description bodies are
+# plain text (v3 would require Atlassian Document Format).
+#
+# Search uses /rest/api/2/search/jql — the old /rest/api/2/search was removed from
+# Jira Cloud on 2025-05-01. Paging is by nextPageToken, not startAt.
+#
+set -euo pipefail
+
+# Capture env-supplied values before sourcing the file, so it cannot clobber them.
+_env_url="${JIRA_URL:-}"; _env_email="${JIRA_EMAIL:-}"; _env_token="${JIRA_TOKEN:-}"
+
+# Resolve this script's real path (follow symlinks) → project root is its parent's parent.
+_self="${BASH_SOURCE[0]}"
+while [ -L "$_self" ]; do
+  _link="$(readlink "$_self")"
+  case "$_link" in /*) _self="$_link" ;; *) _self="$(dirname "$_self")/$_link" ;; esac
+done
+_root="$(cd "$(dirname "$_self")/.." && pwd)"
+
+for _f in "${JIRA_ENV_FILE:-}" "${_root}/jira.env"; do
+  if [ -n "$_f" ] && [ -f "$_f" ]; then . "$_f"; JIRA_ENV_SRC="$_f"; break; fi
+done
+
+JIRA_URL="${_env_url:-${JIRA_URL:-https://nhatlinhnguyen224.atlassian.net}}"
+JIRA_EMAIL="${_env_email:-${JIRA_EMAIL:-}}"
+JIRA_TOKEN="${_env_token:-${JIRA_TOKEN:-}}"
+
+usage() {
+  cat <<'EOF'
+jira — minimal Jira Cloud helper
+
+  jira whoami                              Show active site + account + config source
+  jira view <KEY>                          Summary: status, assignee, type, reporter
+  jira show <KEY>                          Full: + description + latest comments
+  jira ac <KEY>                            Description only (acceptance criteria)
+  jira comment <KEY> <text>                Add a comment
+  jira review-req <KEY> <PR_URL> <name>... Post review-request comment, @-tagging each reviewer
+  jira transitions <KEY>                   List available transitions (id + name)
+  jira move <KEY> <transition-name|id>     Transition the issue (e.g. "In Progress")
+  jira assign <KEY> <email|me|->           Assign (me = you, - = unassign)
+  jira set <KEY> <field> <value>           Set a simple field (summary|priority|...)
+  jira labels <KEY> add|remove <label>     Add/remove a label
+  jira link <KEY> <url> [title]            Add a remote link (e.g. the GitHub PR)
+  jira mine [jql-extra]                    Issues assigned to you (open)
+  jira jql "<jql>"                         Run a JQL search
+  jira raw <method> <path> [json]          Escape hatch under /rest/api/2
+
+Config: jira.env in the project root (cp jira.env.example jira.env)
+        keys: JIRA_URL, JIRA_EMAIL, JIRA_TOKEN
+        precedence: env > $JIRA_ENV_FILE > <project>/jira.env > default
+Token:  https://id.atlassian.com/manage-profile/security/api-tokens
+EOF
+}
+
+die() { echo "jira: $*" >&2; exit 1; }
+
+cmd="${1:-}"; shift || true
+[ -n "$cmd" ] || { usage; exit 0; }
+case "$cmd" in -h|--help|help) usage; exit 0 ;; esac
+
+[ -n "${JIRA_EMAIL:-}" ] || die "JIRA_EMAIL unset (your Atlassian login email)"
+[ -n "${JIRA_TOKEN:-}" ] || die "JIRA_TOKEN unset (create at https://id.atlassian.com/manage-profile/security/api-tokens)"
+
+API="${JIRA_URL%/}/rest/api/2"
+AUTH=(-u "${JIRA_EMAIL}:${JIRA_TOKEN}")
+
+req() {
+  local method="$1" url="$2" body="${3:-}"
+  if [ -n "$body" ]; then
+    curl -sS "${AUTH[@]}" -X "$method" "$url" -H "Content-Type: application/json" --data "$body"
+  else
+    curl -sS "${AUTH[@]}" -X "$method" "$url"
+  fi
+}
+
+# POST /search/jql — old GET /search was removed from Jira Cloud 2025-05-01.
+search() {
+  local jql="$1" max="${2:-50}"
+  req POST "${API}/search/jql" \
+    "$(jq -n --arg j "$jql" --argjson m "$max" \
+        '{jql:$j, maxResults:$m, fields:["summary","status"]}')" \
+    | jq -r 'if .issues then (.issues[]? | "\(.key)  [\(.fields.status.name)]  \(.fields.summary)")
+             else (.errorMessages // .errors // . | @json) end'
+}
+
+# resolve an email/me/- to an accountId for assignment
+account_id() {
+  case "$1" in
+    me) req GET "${JIRA_URL%/}/rest/api/2/myself" | jq -r '.accountId' ;;
+    -)  echo "null" ;;
+    *)  req GET "${API}/user/search?query=$(jq -rn --arg q "$1" '$q|@uri')" | jq -r '.[0].accountId // empty' ;;
+  esac
+}
+
+case "$cmd" in
+  whoami)
+    echo "site:   ${JIRA_URL}"
+    echo "config: ${JIRA_ENV_SRC:-(none — env vars / defaults only)}"
+    req GET "${API}/myself" | jq -r '
+      if .accountId then "account: \(.displayName) <\(.emailAddress // "?")>  id=\(.accountId)"
+      else "account: FAILED — \(.errorMessages // . | @json)" end'
+    ;;
+  view)
+    [ $# -ge 1 ] || die "usage: jira view <KEY>"
+    req GET "${API}/issue/$1?fields=summary,status,assignee,reporter,issuetype,priority" | jq -r '
+      if .fields then
+        "\(.key)  [\(.fields.status.name)]  \(.fields.summary)",
+        "  type:     \(.fields.issuetype.name)   priority: \(.fields.priority.name // "-")",
+        "  assignee: \(.fields.assignee.displayName // "unassigned")",
+        "  reporter: \(.fields.reporter.displayName // "-")"
+      else (.errorMessages // . | @json) end'
+    ;;
+  show)
+    [ $# -ge 1 ] || die "usage: jira show <KEY>"
+    req GET "${API}/issue/$1?fields=summary,status,assignee,issuetype,description,comment" | jq -r '
+      if .fields then
+        "\(.key)  [\(.fields.status.name)]  \(.fields.summary)",
+        "  assignee: \(.fields.assignee.displayName // "unassigned")",
+        "",
+        "── Description ──",
+        (.fields.description // "(none)"),
+        "",
+        "── Comments ──",
+        (.fields.comment.comments[-5:][]? | "• \(.author.displayName): \(.body)")
+      else (.errorMessages // . | @json) end'
+    ;;
+  ac)
+    [ $# -ge 1 ] || die "usage: jira ac <KEY>"
+    req GET "${API}/issue/$1?fields=summary,description" | jq -r '
+      if .fields then "\(.key)  \(.fields.summary)", "", (.fields.description // "(no description)")
+      else (.errorMessages // . | @json) end'
+    ;;
+  comment)
+    [ $# -ge 2 ] || die "usage: jira comment <KEY> <text>"
+    key="$1"; shift
+    req POST "${API}/issue/${key}/comment" "$(jq -n --arg b "$*" '{body:$b}')" \
+      | jq -r 'if .id then "commented (id=\(.id))" else (.errorMessages // . | @json) end'
+    ;;
+  review-req)
+    [ $# -ge 3 ] || die "usage: jira review-req <KEY> <PR_URL> <name|email> [name...]"
+    key="$1"; url="$2"; shift 2
+    mentions=""
+    for who in "$@"; do
+      aid="$(req GET "${API}/user/search?query=$(jq -rn --arg q "$who" '$q|@uri')" | jq -r '.[0].accountId // empty')"
+      [ -n "$aid" ] || die "user not found: $who"
+      mentions="${mentions:+$mentions, }[~accountid:${aid}]"
+    done
+    # [~accountid:] renders as @DisplayName AND notifies (plain @text does not on Cloud)
+    text="$(printf 'Hi %s \nPlease help to me review this PR: %s\nThanks!' "$mentions" "$url")"
+    req POST "${API}/issue/${key}/comment" "$(jq -n --arg b "$text" '{body:$b}')" \
+      | jq -r 'if .id then "review-request posted (id=\(.id))" else (.errorMessages // . | @json) end'
+    ;;
+  transitions)
+    [ $# -ge 1 ] || die "usage: jira transitions <KEY>"
+    req GET "${API}/issue/$1/transitions" | jq -r '.transitions[]? | "\(.id)\t\(.name)  -> \(.to.name)"'
+    ;;
+  move)
+    [ $# -ge 2 ] || die "usage: jira move <KEY> <transition-name|id>"
+    key="$1"; want="$2"
+    tid="$(req GET "${API}/issue/${key}/transitions" \
+      | jq -r --arg w "$want" '.transitions[]? | select((.id==$w) or (.name|ascii_downcase==($w|ascii_downcase))) | .id' | head -1)"
+    [ -n "$tid" ] || die "no transition matching '$want' (run: jira transitions $key)"
+    out="$(req POST "${API}/issue/${key}/transitions" "$(jq -n --arg id "$tid" '{transition:{id:$id}}')")"
+    [ -z "$out" ] && echo "moved $key via transition $tid" || echo "$out" | jq -r '.errorMessages // .errors // .'
+    ;;
+  assign)
+    [ $# -ge 2 ] || die "usage: jira assign <KEY> <email|me|->"
+    key="$1"; aid="$(account_id "$2")"
+    [ -n "$aid" ] || die "user not found: $2"
+    body="$([ "$aid" = "null" ] && echo '{"accountId":null}' || jq -n --arg a "$aid" '{accountId:$a}')"
+    out="$(req PUT "${API}/issue/${key}/assignee" "$body")"
+    [ -z "$out" ] && echo "assigned $key -> $2" || echo "$out"
+    ;;
+  set)
+    [ $# -ge 3 ] || die "usage: jira set <KEY> <field> <value>"
+    key="$1"; field="$2"; val="$3"
+    case "$field" in
+      priority) upd="$(jq -n --arg v "$val" '{fields:{priority:{name:$v}}}')" ;;
+      *)        upd="$(jq -n --arg f "$field" --arg v "$val" '{fields:{($f):$v}}')" ;;
+    esac
+    out="$(req PUT "${API}/issue/${key}" "$upd")"
+    [ -z "$out" ] && echo "set $field on $key" || echo "$out"
+    ;;
+  labels)
+    [ $# -ge 3 ] || die "usage: jira labels <KEY> add|remove <label>"
+    key="$1"; op="$2"; lab="$3"
+    upd="$(jq -n --arg op "$op" --arg l "$lab" '{update:{labels:[({($op):$l})]}}')"
+    out="$(req PUT "${API}/issue/${key}" "$upd")"
+    [ -z "$out" ] && echo "labels $op $lab on $key" || echo "$out"
+    ;;
+  link)
+    [ $# -ge 2 ] || die "usage: jira link <KEY> <url> [title]"
+    key="$1"; url="$2"; title="${3:-$2}"
+    req POST "${API}/issue/${key}/remotelink" "$(jq -n --arg u "$url" --arg t "$title" '{object:{url:$u, title:$t}}')" \
+      | jq -r 'if .id then "linked \(.id)" else (.errorMessages // . | @json) end'
+    ;;
+  mine)
+    extra="${1:-}"
+    search "assignee = currentUser() AND statusCategory != Done${extra:+ AND $extra} ORDER BY updated DESC"
+    ;;
+  jql)
+    [ $# -ge 1 ] || die "usage: jira jql \"<jql>\""
+    search "$1"
+    ;;
+  raw)
+    [ $# -ge 2 ] || die "usage: jira raw <method> <path> [json]"
+    m="$1"; p="$2"; shift 2
+    req "$m" "${API}${p}" "${1:-}"
+    ;;
+  *)
+    die "unknown command: $cmd (run: jira --help)"
+    ;;
+esac
