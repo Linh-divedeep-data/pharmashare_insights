@@ -1,7 +1,0 @@
-{
-  "database": "dolt",
-  "backend": "dolt",
-  "dolt_mode": "embedded",
-  "dolt_database": "pharmashare",
-  "project_id": "5a5b61c6-65a6-4a95-a6d8-e362a4bec403"
-}
