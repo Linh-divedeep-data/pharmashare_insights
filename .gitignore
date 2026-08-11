@@ -9,14 +9,17 @@
 .claude/settings.local.json
 .codex/config.local.toml
 
-# Claude Code — không public lộ dùng AI agent
+# AI agent tooling — không public lộ dùng AI agent
 CLAUDE.md
 .claude/
+AGENTS.md
+.agents/
+.mcp.json
+openspec/
+jira.md
+bin/jira
+bin/bootstrap-sprint0.sh
+.beads/
 
-# Beads / Dolt files (added by bd init)
-.dolt/
-*.db
-.beads-credential-key
-.beads/proxieddb/
 # Added by code-review-graph
 .code-review-graph/
