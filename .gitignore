@@ -5,10 +5,6 @@
 # Logs
 *.log
 
-# Local machine-specific config
-.claude/settings.local.json
-.codex/config.local.toml
-
 # AI agent tooling — không public lộ dùng AI agent
 CLAUDE.md
 .claude/
@@ -20,6 +16,7 @@ jira.md
 bin/jira
 bin/bootstrap-sprint0.sh
 .beads/
+.codex/
 
 # Added by code-review-graph
 .code-review-graph/
