@@ -1,0 +1,20 @@
+[project]
+name = "pharmashare-insights"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.121.0",
+    "pandas>=3.0.5",
+    "pandera>=0.32.1",
+    "psycopg[binary]>=3.3.4",
+    "python-dotenv>=1.2.2",
+    "pyyaml>=6.0.3",
+    "selenium>=4.47.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
