@@ -65,3 +65,17 @@ def test_parse_empty_dbname_raises():
 def test_parse_none_raises_value_error():
     with pytest.raises(ValueError):
         parse_database_url(None)
+
+
+def test_parse_preserves_explicit_port_zero():
+    result = parse_database_url("postgresql://myuser:mypass@db.example.com:0/mydb")
+
+    assert result["port"] == 0
+
+
+def test_parse_percent_decodes_username():
+    result = parse_database_url(
+        "postgresql://my%40user:mypass@db.example.com:5432/mydb"
+    )
+
+    assert result["user"] == "my@user"

@@ -1,5 +1,5 @@
 import os
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 import psycopg
 
@@ -25,9 +25,9 @@ def parse_database_url(url: str) -> dict:
 
     return {
         "host": parts.hostname,
-        "port": parts.port or DEFAULT_PORT,
+        "port": parts.port if parts.port is not None else DEFAULT_PORT,
         "dbname": dbname,
-        "user": parts.username,
+        "user": unquote(parts.username),
     }
 
 
