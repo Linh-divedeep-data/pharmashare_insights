@@ -46,9 +46,16 @@ Disallow:
 
 Portlet Liferay (`p_p_id=egpportalcontractorselectionv2...`), `render=detail-v2`, `stepCode=reoffer-price-step-1` map đúng "bước chào lại giá" — đây chính là trang giá chi tiết Jira yêu cầu khảo sát. `id`/`notifyId` là UUID gói thầu cụ thể.
 
-**Thử truy cập trực tiếp bằng `curl` (không đăng nhập) — kết quả thật:** bị chặn ở tầng TLS (`Recv failure: Connection reset by peer` ngay lúc TLS handshake, trước khi tới HTTP) — không lấy được nội dung trang. Không phải do yêu cầu đăng nhập (đó là lỗi ở tầng ứng dụng/HTTP, không phải TLS) — xem mục 5 để biết nguyên nhân thật (rate-limit/WAF).
+**Lần thử đầu (giữa lúc bị rate-limit — xem mục 5):** bị chặn ở tầng TLS (`Recv failure: Connection reset by peer` ngay lúc TLS handshake, trước khi tới HTTP) — không lấy được nội dung trang. Đây là do rate-limit tạm thời (mục 5), không phải do yêu cầu đăng nhập.
 
-**Độ tin cậy TRUNG BÌNH (vẫn là suy luận, không phải "kết quả thật" như Jira yêu cầu):** nội dung trang chi tiết KHÔNG verify được trực tiếp trong khảo sát này (do bị chặn tầng TLS, xem mục 5) — đây là gap còn lại, không phải do lựa chọn phương pháp. Suy luận dựa trên: trang search truy cập tự do + robots.txt allow-all + dữ liệu đấu thầu công khai theo luật Việt Nam (Luật Đấu thầu yêu cầu công khai kết quả). **Bắt buộc verify trực tiếp bằng Selenium ở đầu Phase 1** (cách chờ rate-limit hết + dùng URL thật ở trên) trước khi code crawler dựa vào giả định này (R-02, PLAN.md).
+**Sau khi rate-limit hết (~1 giờ sau, retry 1 request duy nhất) — kết quả thật, xác nhận trực tiếp:**
+
+- `HTTP 200`, `curl` không mang cookie/session, **không redirect** sang trang login, response 454KB (không phải trang lỗi/login wall).
+- Response chứa đúng `notifyNo=IB2500633776` / `planNo=PL2500351299` (giá trị query mình gửi được server phản ánh lại trong nội dung) — xác nhận server có xử lý theo `id`/`notifyId` thật, không phải trang tĩnh chung chung.
+- Response chứa các label/template giá thật: `Giá dự thầu`, `Giá dự thầu cuối cùng (M)`, `{{item?.reofferPrice | currency}}`, `{{listContractorKq?.[0]?.reofferPriceFinal | currency}} VND` — đây là template Vue binding (giá trị số thật populate lúc client gọi API, giống kiến trúc trang search ở mục 2), không phải nội dung bị che/khoá.
+- Chuỗi modal "Phiên đăng nhập của bạn đã hết hạn..." vẫn xuất hiện (1 lần, trong 1 ternary JS) — cùng pattern shared-modal đã xác nhận ở mục 3, không phải login wall chặn trang.
+
+**Kết luận (độ tin cậy CAO — xác nhận trực tiếp bằng kết quả thật, không còn suy luận):** trang chi tiết giá trúng thầu **không yêu cầu đăng nhập** để load — cùng pattern với trang search. Giá trị số cụ thể (số tiền) render qua Vue sau khi gọi API POST client-side (giới hạn kiến trúc chung, mục 2), không phải do chặn đăng nhập — muốn lấy số liệu thật cần Selenium/gọi thẳng API, đây là quyết định kỹ thuật Phase 1, không phải câu hỏi "có cần login" nữa (AC này đã trả lời xong).
 
 ## 5. Captcha / Anti-bot
 
@@ -59,4 +66,4 @@ Portlet Liferay (`p_p_id=egpportalcontractorselectionv2...`), `render=detail-v2`
 
 ## Giới hạn phương pháp
 
-Khảo sát này dùng `curl` + thử headless Selenium thay vì DevTools trình duyệt tương tác như Jira đề xuất ban đầu (môi trường không có UI trình duyệt tương tác, và headless Chrome ở đây bị WAF/anti-bot chặn — xem mục 5). Ưu điểm `curl`: nhanh, khách quan. Giới hạn: không thấy nội dung render bởi Vue sau khi gọi API. Mục 3 kết luận CAO vì kiểm tra được response HTTP trực tiếp trước khi bị rate-limit. Mục 4 (trang chi tiết) vẫn TRUNG BÌNH — đây là gap thật của khảo sát này, chưa đạt yêu cầu "ghi lại kết quả thật" của Jira PI-43 cho riêng trang chi tiết; đã xác nhận được URL/params thật (mục 4) nhưng bị chặn TLS trước khi lấy được nội dung. **Cần làm lại bước verify trang chi tiết đầu Phase 1**, chờ rate-limit hết, dùng URL thật đã tìm được ở mục 4, qua Selenium không headless nếu có thể (headless bị chặn riêng — mục 5).
+Khảo sát này dùng `curl` + thử headless Selenium thay vì DevTools trình duyệt tương tác như Jira đề xuất ban đầu (môi trường không có UI trình duyệt tương tác, và headless Chrome ở đây bị WAF/anti-bot chặn — xem mục 5). Ưu điểm `curl`: nhanh, khách quan. Giới hạn: không thấy giá trị số thật render bởi Vue sau khi gọi API (search lẫn detail) — nhưng câu hỏi trọng tâm của PI-43 ("có/không yêu cầu đăng nhập") đã trả lời được cho cả 2 trang bằng kết quả HTTP thật (mục 3, mục 4), độ tin cậy CAO. Việc lấy số liệu giá thật (không phải câu hỏi đăng nhập) thuộc phạm vi kỹ thuật crawler Phase 1.
