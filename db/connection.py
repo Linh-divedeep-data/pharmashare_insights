@@ -19,7 +19,7 @@ def parse_database_url(url: str) -> dict:
     if not parts.username:
         raise ValueError(f"Invalid Postgres connection string (thieu user): {url!r}")
 
-    dbname = parts.path.lstrip("/")
+    dbname = unquote(parts.path.lstrip("/"))
     if not dbname:
         raise ValueError(f"Invalid Postgres connection string (thieu dbname): {url!r}")
 

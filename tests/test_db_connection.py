@@ -79,3 +79,11 @@ def test_parse_percent_decodes_username():
     )
 
     assert result["user"] == "my@user"
+
+
+def test_parse_percent_decodes_dbname():
+    result = parse_database_url(
+        "postgresql://myuser:mypass@db.example.com:5432/my%40db"
+    )
+
+    assert result["dbname"] == "my@db"
