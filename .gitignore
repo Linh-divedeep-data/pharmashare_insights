@@ -10,6 +10,7 @@ CLAUDE.md
 .claude/
 AGENTS.md
 .agents/
+skills-lock.json
 .mcp.json
 openspec/
 jira.md
