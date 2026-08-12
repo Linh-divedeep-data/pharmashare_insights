@@ -4,6 +4,15 @@
 
 # Logs
 *.log
+logs/
+
+# Python / uv
+.venv/
+__pycache__/
+.env
+
+# Data lake (crawler output, tao boi subtask sau)
+data/
 
 # AI agent tooling — không public lộ dùng AI agent
 CLAUDE.md
