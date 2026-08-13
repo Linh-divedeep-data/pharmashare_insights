@@ -279,6 +279,51 @@ Bảng tóm tắt để đọc nhanh — **cột Confidence là phần quan tr�
 
 ---
 
+## 6. Nguồn đối chiếu — dauthau.info (PI-44)
+
+**Ticket:** PI-44 · **Ngày khảo sát:** 2026-08-13 · **Phương pháp:** đăng nhập thủ công tài khoản free tier (nền tảng "Hệ sinh thái Đấu Thầu" — DauThau.info / DauThau.Net / DauGia.Net dùng chung 1 tài khoản), duyệt UI qua trình duyệt thật, không dùng `curl`/API trực tiếp.
+
+**Mục đích khảo sát:** xác định dauthau.info có dùng được làm phương án dự phòng (R-02, PLAN.md) nếu muasamcong.mpi.gov.vn bị chặn hoặc yêu cầu login giữa chừng Phase 1 hay không.
+
+### 6.1 Field mở với tài khoản free tier
+
+Xem tại trang chi tiết 1 gói thầu (`Mã TBMT: IB2600229367-00`, "Kiểm toán Báo cáo quyết toán dự án hoàn thành"):
+
+| Field | Trạng thái |
+|---|---|
+| Mã TBMT, Số KHLCNT | Mở |
+| Tên gói thầu | Mở |
+| Chủ đầu tư | Mở |
+| Hình thức đấu thầu | Mở |
+| **Giá gói thầu** (số VND cụ thể) | Mở |
+| Ngày đăng tải | Mở |
+| Loại hợp đồng, số lượng túi hồ sơ | Mở |
+| Lĩnh vực | Mở |
+| Số quyết định phê duyệt + nội dung quyết định | Mở |
+
+**Kết luận (🟢 CAO — quan sát trực tiếp, tài khoản free tier thật):** toàn bộ thông tin **mô tả gói thầu** (trước khi có kết quả) xem được đầy đủ, không bị khoá.
+
+### 6.2 Field khoá sau paywall
+
+Kiểm tra ở 2 danh mục kết quả riêng biệt trong menu "ĐẤU THẦU":
+
+- **"Kết quả lựa chọn nhà thầu"** (mua sắm hàng hoá/dịch vụ — cùng nhóm với muasamcong) — toàn bộ danh sách nhiều dòng, cột **"Trúng thầu"** hiện dòng cố định: *"Thông tin chỉ hiển thị cho tài khoản trả phí!"* thay vì tên nhà thầu/giá trúng thầu. Khoá ngay ở list view, không cần mở chi tiết mới thấy khoá.
+- **"Kết quả lựa chọn nhà đầu tư"** (dự án PPP/đầu tư) — cùng pattern y hệt, cùng dòng chữ khoá.
+
+**Kết luận (🟢 CAO — quan sát trực tiếp, 2 danh mục riêng, nhiều dòng khác nhau, cùng pattern):** **kết quả trúng thầu (tên nhà thầu + giá trúng thầu) bị khoá hoàn toàn với tài khoản free tier** — đây đúng là field quan trọng nhất mà PI-43 xác định là mục tiêu chính của crawler (`reofferPriceFinal`, mục 4.2).
+
+**Ghi chú thêm (🟡 TRUNG BÌNH — quan sát 1 lần, chưa test hết mọi loại gói thầu):** trang **"Kết quả sơ tuyển nhà thầu"** (vòng sơ tuyển, khác với kết quả trúng thầu cuối) lại **không bị khoá** — tên nhà thầu qua sơ tuyển hiện đầy đủ. Gợi ý paywall chỉ chặn đúng bước "kết quả cuối/giá trúng thầu", không chặn toàn bộ dữ liệu đấu thầu.
+
+### 6.3 Vai trò của dauthau.info cho crawler
+
+**Kết luận:** dauthau.info dùng được với vai trò **đối chiếu** (cross-reference), **không dùng được** với vai trò **phương án dự phòng thay thế** cho mục tiêu chính của crawler.
+
+- **Dùng tốt để đối chiếu:** thông tin mô tả gói thầu (tên, chủ đầu tư, giá gói thầu dự toán, ngày đăng, hình thức, quyết định phê duyệt) — có thể dùng validate chéo dữ liệu crawl được từ muasamcong, hoặc bổ sung field mà muasamcong không có sẵn ở dạng dễ đọc.
+- **Không dùng được làm dự phòng cho phần quan trọng nhất:** field mục tiêu chính của toàn bộ dự án — **giá trúng thầu cụ thể (`reofferPriceFinal`)** — bị khoá sau paywall trên dauthau.info với free tier. Nếu muasamcong bị chặn giữa chừng Phase 1, dauthau.info **không thể** thay thế để lấy được số liệu giá trúng thầu; chỉ nâng cấp tài khoản trả phí (chưa rõ chi phí/gói nào đủ) mới mở được, nằm ngoài scope kỹ thuật của crawler.
+- **Ý nghĩa cho R-02 (PLAN.md):** rủi ro "muasamcong bị chặn/yêu cầu login" **vẫn chưa có phương án dự phòng đã xác nhận** cho phần giá trúng thầu — cần note lại R-02 là gap còn mở, không nên coi dauthau.info là giải pháp an toàn đã kiểm chứng.
+
+---
+
 ## Open Questions
 
 Câu hỏi **chưa trả lời được** trong khảo sát này — liệt kê rõ để Phase 1 biết cần verify gì trước khi dựa vào báo cáo này để thiết kế crawler.
@@ -309,6 +354,8 @@ Câu hỏi **chưa trả lời được** trong khảo sát này — liệt kê 
 **3. Kiến trúc kỹ thuật đã đủ rõ để thiết kế crawler.** 6 endpoint API nội bộ, cấu trúc pagination, và field dữ liệu cần lấy (đặc biệt `reofferPriceFinal` — giá trúng thầu) đều đã xác định từ source code thật. Phần chưa xác nhận (response thật, `totalElements`, Content-Type) là rủi ro thấp — thường đúng như suy luận theo pattern code, chỉ cần 1 lần gọi thử thật để chốt.
 
 **4. Data volume là gap duy nhất chưa có hướng giải quyết rõ ràng trong khảo sát tĩnh** — cần gọi API thật (có captcha) mới đo được, nên nằm ngoài scope PI-43.
+
+**5. Không có phương án dự phòng đã kiểm chứng cho rủi ro R-02 (muasamcong bị chặn).** Khảo sát dauthau.info (PI-44, mục 6) cho thấy nguồn này chỉ dùng được để đối chiếu thông tin mô tả gói thầu (giá gói thầu, chủ đầu tư, ngày đăng...), **không thay thế được** cho phần dữ liệu quan trọng nhất — giá trúng thầu cụ thể bị khoá sau paywall trả phí ngay cả ở tài khoản free tier. Nếu muasamcong gặp sự cố giữa Phase 1, dự án chưa có nguồn thay thế đã xác nhận cho `reofferPriceFinal`.
 
 **Quyết định cần stakeholder xác nhận trước khi vào Phase 1:**
 - Đồng ý đầu tư 1 buổi Selenium không-headless (Xvfb) đầu Phase 1 để trả lời 10 Open Questions, thay vì code crawler dựa hoàn toàn trên suy luận từ source code tĩnh.
