@@ -1,0 +1,71 @@
+# config/keywords.yaml
+#
+# DRAFT (PI-45) - danh muc hoat chat STADA/Pymepharco dung lam tu khoa crawl
+# muasamcong.mpi.gov.vn / dauthau.info. CAN USER REVIEW truoc khi dung o Phase 1.
+#
+# Nguon: san pham cong khai tren stadapymepharco.com (STADA Viet Nam va
+# Pymepharco hien hoat dong duoi 1 thuong hieu chung, theo bao Dan Tri 10/2024).
+# Cong ty cong bo ~800 hoat chat / gan 400 san pham, nhung trang danh muc
+# (xem catalog_page) render nhieu tab bang JS nen chi trich duoc day du
+# hoat chat cho nhom "Khang sinh" tu HTML tinh; cac nhom con lai moi co ten
+# nhom, chua co danh sach hoat chat day du (xem unverified_groups_pending_review).
+
+source:
+  company: "STADA Pymepharco"
+  note: >
+    STADA Viet Nam va Pymepharco hien hoat dong duoi 1 thuong hieu chung
+    stadapymepharco.com - hai ten trong ticket goc thuc te la 1 cong ty.
+  official_site: "https://stadapymepharco.com"
+  catalog_page: "https://stadapymepharco.com/pages/hoat-chat"
+  surveyed_date: "2026-08-13"
+
+therapeutic_groups:
+  - group: "Kháng sinh"
+    source_url: "https://stadapymepharco.com/pages/hoat-chat"
+    active_ingredients:
+      - "Cefdinir"
+      - "Cefoperazon"
+      - "Azithromycin"
+      - "Cephalexin"
+      - "Ceftazidim"
+      - "Ceftriaxon"
+      - "Ceftibuten"
+      - "Cefazolin"
+      - "Cefotiam"
+      - "Cefepim"
+      - "Ciprofloxacin"
+      - "Cefadroxil"
+      - "Clindamycin"
+      - "Cefixim"
+      - "Cefpodoxim"
+      - "Cefaclor"
+      - "Cefradin"
+      - "Ceftizoxim"
+      - "Cefuroxim"
+      - "Lincomycin"
+      - "Sulfamethoxazol; Trimethoprim"
+      - "Meropenem"
+      - "Cefoperazon; Sulbactam"
+
+  - group: "Tim mạch & Chuyển hóa"
+    source_url: "https://stadapymepharco.com/blogs/thuoc-ke-don-thuoc-tim-mach-chuyen-hoa/"
+    active_ingredients:
+      - "Bisoprolol fumarat"
+      - "Candesartan cilexetil"
+
+  - group: "Giảm đau"
+    source_url: "https://stadapymepharco.com/blogs/giam-dau/"
+    active_ingredients:
+      - "Paracetamol; Tramadol Hydroclorid"
+
+# Nhom co ten tren trang danh muc chinh thuc nhung chua trich duoc day du
+# hoat chat (JS-rendered, khong nam trong HTML tinh WebFetch doc duoc).
+# Can bo sung o Phase 1 khi duyet UI truc tiep bang trinh duyet thuc.
+unverified_groups_pending_review:
+  - "Kháng viêm"
+  - "Tiêu hóa"
+  - "Kháng nấm"
+  - "Kháng virus"
+  - "Ho – Cảm – Dị ứng"
+  - "Vitamin, Khoáng chất & Kiểm soát cân nặng"
+  - "Ung thư"
